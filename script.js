@@ -155,14 +155,34 @@
     el._t = setTimeout(() => el.classList.remove('show'), ms || 4200);
   }
 
-  function timeHHMM(d){
-  if(!d || isNaN(d)) d = new Date();
-  return d.toLocaleTimeString('id-ID', {
-    hour:'2-digit',
-    minute:'2-digit',
-    timeZone: 'Asia/Jakarta'   
-  });
-}
+function timeHHMM(d){
+    if(!d || isNaN(d)) d = new Date();
+    return d.toLocaleTimeString('id-ID', {
+      hour:'2-digit',
+      minute:'2-digit',
+      timeZone: 'Asia/Jakarta'   
+    });
+  }
+
+  // Fungsi baru untuk format tanggal lengkap pada tabel (Misal: 28 Sep 2026, 16.12)
+  function formatWaktuLengkap(d){
+    if(!d || isNaN(d)) d = new Date();
+    
+    const tgl = d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta'
+    });
+    
+    const jam = d.toLocaleTimeString('id-ID', {
+      hour:'2-digit',
+      minute:'2-digit',
+      timeZone: 'Asia/Jakarta'
+    }).replace(':', '.');
+    
+    return `${tgl}, ${jam}`;
+  }
 
   /* =========================================================
      LOGIN
