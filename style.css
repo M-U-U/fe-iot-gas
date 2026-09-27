@@ -486,7 +486,7 @@
   }
   .log-row{
     display:grid;
-    grid-template-columns:74px 1fr 88px 96px;
+    grid-template-columns:140px 1fr 88px 96px;
     align-items:center;
     gap:10px;
     padding:12px 4px;
@@ -498,6 +498,7 @@
     font-family:var(--font-mono);
     color:var(--text-dim);
     font-size:12px;
+    white-space: nowrap;
   }
   .log-event{color:var(--text);}
   .log-ppm{
