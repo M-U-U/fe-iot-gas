@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Gas Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<!-- Chart.js untuk grafik kadar gas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="screen" id="screen-login">
+  <div class="auth-card">
+    <div class="auth-mark"><span class="dot"></span><span>SMART GAS DETECTION</span></div>
+    <div class="auth-title">Masuk ke akun kamu</div>
+    <div class="auth-sub">Pantau kondisi gas dapur secara real-time. Masukkan nomor HP yang terdaftar pada perangkat untuk menerima kode verifikasi.</div>
+
+    <form id="form-login" onsubmit="return false;">
+      <label class="field-label" for="phone-input">Nomor HP</label>
+      <div class="phone-input-wrap">
+        <span class="phone-prefix">+62</span>
+        <input id="phone-input" type="tel" inputmode="numeric" placeholder="812xxxxxxx" maxlength="13" autocomplete="tel-national">
+      </div>
+      <div class="field-error" id="phone-error"></div>
+
+      <button type="submit" class="btn btn-primary" id="btn-send-otp">Kirim kode OTP</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ OTP ============ -->
+<div class="screen" id="screen-otp">
+  <div class="auth-card">
+    <div class="auth-mark"><span class="dot"></span><span>SMART GAS DETECTION</span></div>
+    <div class="auth-title">Masukkan kode OTP</div>
+    <div class="auth-sub">Kode verifikasi 6 digit telah dikirim ke <span class="otp-target"><b id="otp-phone-display">+62</b></span>.</div>
+
+    <form id="form-otp" onsubmit="return false;">
+      <div class="otp-boxes" id="otp-boxes">
+        <input class="otp-box" maxlength="1" inputmode="numeric" autocomplete="one-time-code">
+        <input class="otp-box" maxlength="1" inputmode="numeric">
+        <input class="otp-box" maxlength="1" inputmode="numeric">
+        <input class="otp-box" maxlength="1" inputmode="numeric">
+        <input class="otp-box" maxlength="1" inputmode="numeric">
+        <input class="otp-box" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="field-error" id="otp-error"></div>
+
+      <div class="otp-meta">
+        <span class="otp-target" id="otp-timer">Kirim ulang dalam 0:30</span>
+        <button type="button" class="otp-resend" id="btn-resend" disabled>Kirim ulang kode</button>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="btn-verify-otp">Verifikasi &amp; masuk</button>
+      <button type="button" class="back-link" id="btn-back-login">&larr; Ganti nomor HP</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div class="screen" id="screen-dashboard">
+
+  <div class="topbar">
+    <div class="topbar-id">
+      <span class="dot" id="topbar-dot"></span>
+      <div class="topbar-id-text">
+        <b>Dapur Rumah &mdash; ESP32_Gas_Sensor</b>
+        <span id="topbar-phone">+62</span>
+      </div>
+    </div>
+    <button type="button" class="logout-btn" id="btn-logout">Keluar</button>
+  </div>
+
+  <!-- hero status -->
+  <div class="hero state-safe" id="hero">
+    <div class="hero-top">
+      <div class="status-pill"><span class="pip"></span><span id="status-pill-text">AMAN</span></div>
+      <div class="hero-updated" id="hero-updated">diperbarui baru saja</div>
+    </div>
+    <div class="hero-main">
+      <div>
+        <div class="status-label" id="status-label">Kondisi lingkungan aman</div>
+        <div class="status-desc" id="status-desc">Kadar gas di bawah ambang batas. LED hijau menyala, sirine mati.</div>
+      </div>
+      <div class="reading">
+        <div class="reading-value" id="reading-value">0<span>ppm</span></div>
+        <div class="reading-caption">kadar gas LPG &middot; sensor MQ-6</div>
+      </div>
+    </div>
+
+    <div class="threshold-wrap">
+      <div class="threshold-track">
+        <div class="threshold-fill" id="threshold-fill" style="width:0%"></div>
+        <div class="threshold-mark" style="left:66.6%" title="Batas bahaya 2000 ppm"></div>
+      </div>
+      <div class="threshold-labels">
+        <span>0</span>
+        <span>Batas bahaya &middot; 2000 ppm</span>
+        <span>3000</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-mini-label">Sirine &amp; alarm lokal</div>
+      <div class="card-mini-value ok" id="mini-siren">Nonaktif</div>
+    </div>
+    <div class="card">
+      <div class="card-mini-label">Konektivitas perangkat</div>
+      <div class="card-mini-value ok" id="mini-conn">Terhubung</div>
+    </div>
+  </div>
+
+  <!-- chart -->
+  <div class="section-head">
+    <div class="section-title">Grafik kadar gas</div>
+    <div class="section-note">30 pembacaan terakhir</div>
+  </div>
+  <div class="panel">
+    <div class="chart-legend">
+      <span><i style="background:var(--accent)"></i>Kadar gas (ppm)</span>
+      <span><i style="background:var(--danger); opacity:.6"></i>Batas bahaya</span>
+    </div>
+    <div class="chart-wrap"><canvas id="gasChart"></canvas></div>
+  </div>
+
+  <!-- log -->
+  <div class="section-head">
+    <div class="section-title">Riwayat log</div>
+    <div class="section-note" id="log-count">0 kejadian</div>
+  </div>
+  <div class="panel">
+    <div class="log-list" id="log-list">
+      <div class="empty-note">Belum ada riwayat kejadian.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="script.js?v=2"></script>
+</body>
+</html>
