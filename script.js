@@ -494,9 +494,10 @@ function timeHHMM(d){
       list.innerHTML = '<div class="empty-note">Belum ada riwayat kejadian.</div>';
       return;
     }
+
     list.innerHTML = logEntries.map(e => `
       <div class="log-row">
-        <div class="log-time">${timeHHMM(e.t)}</div>
+        <div class="log-time">${formatWaktuLengkap(e.t)}</div> 
         <div class="log-event">${e.label}</div>
         <div class="log-ppm">${e.ppm !== null ? e.ppm + ' ppm' : '&ndash;'}</div>
         <div class="log-tag ${e.state}">${(STATE_META[e.state] || STATE_META.offline).label}</div>
