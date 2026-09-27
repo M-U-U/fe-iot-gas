@@ -3,8 +3,8 @@
   /* =========================================================
      KONFIGURASI BACKEND
      ========================================================= */
-  const API_BASE = 'http://localhost:5000/api';
-  const TOKEN_KEY = 'gas_monitor_token';
+  const API_BASE = 'https://be-iot-gas.onrender.com/api';
+  const TOKEN_KEY = 'auth_token';
 
   function getToken(){ return localStorage.getItem(TOKEN_KEY); }
   function setToken(t){ localStorage.setItem(TOKEN_KEY, t); }
