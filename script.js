@@ -539,6 +539,15 @@ function timeHHMM(d){
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // TAMBAHKAN BAGIAN LAYOUT INI:
+        layout: {
+          padding: {
+            left: 15,
+            right: 15,
+            top: 10,
+            bottom: 0
+          }
+        },
         animation: { duration: 300 },
         interaction: { intersect: false, mode: 'index' },
         plugins: { legend: { display:false } },
