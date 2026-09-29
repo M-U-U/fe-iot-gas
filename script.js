@@ -389,7 +389,7 @@ function timeHHMM(d){
 
     try{
       const chartHistory = await GasAPI.getChartHistory('30d');
-      chartHistory.slice(-30).forEach(p => historyPoints.push({ t: p.t, ppm: p.ppm }));
+      chartHistory.slice(-20).forEach(p => historyPoints.push({ t: p.t, ppm: p.ppm }));
       updateChart();
     } catch(err){ /* abaikan jika gagal */ }
 
@@ -460,7 +460,7 @@ function timeHHMM(d){
 
     if(reading.ppm !== null){
       historyPoints.push({ t: reading.timestamp, ppm: reading.ppm });
-      if(historyPoints.length > 30) historyPoints.shift();
+      if(historyPoints.length > 20) historyPoints.shift();
       updateChart();
     }
 
