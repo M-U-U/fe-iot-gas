@@ -119,7 +119,7 @@
 
     // GET /api/dashboard/gas/chart?period=1h
     async getChartHistory(period){
-      const res = await apiFetch('/dashboard/gas/chart?period=' + (period || '1h'), { method:'GET' });
+      const res = await apiFetch('/dashboard/gas/chart?period=' + (period || '30d'), { method:'GET' });
       return (res.data || []).map(p => ({ t: new Date(p.timestamp), ppm: p.gas_value }));
     },
 
@@ -388,7 +388,7 @@ function timeHHMM(d){
     renderLog();
 
     try{
-      const chartHistory = await GasAPI.getChartHistory('1h');
+      const chartHistory = await GasAPI.getChartHistory('30d');
       chartHistory.slice(-30).forEach(p => historyPoints.push({ t: p.t, ppm: p.ppm }));
       updateChart();
     } catch(err){ /* abaikan jika gagal */ }
