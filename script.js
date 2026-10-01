@@ -103,11 +103,11 @@
       const rawPpm = (d.nilai_gas !== undefined && d.nilai_gas !== null) ? d.nilai_gas : d.gas_value;
       const ppmVal = (rawPpm === null || rawPpm === undefined) ? null : Number(rawPpm);
 
-      // Evaluasi state berdasarkan THRESHOLD 2000 ppm dan status device
+      // Murni evaluasi berdasarkan angka PPM (Batas THRESHOLD = 2000 ppm)
       let calculatedState = 'safe';
       if (d.status === 'mati') {
         calculatedState = 'offline';
-      } else if (ppmVal !== null && (ppmVal >= GasAPI.THRESHOLD || d.is_danger === true || d.status === 'bahaya')) {
+      } else if (ppmVal !== null && ppmVal >= GasAPI.THRESHOLD) {
         calculatedState = 'danger';
       }
 
