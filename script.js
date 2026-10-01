@@ -23,7 +23,7 @@
       options.headers || {}
     );
     
-    // PERBAIKAN: Jangan kirim token lama ke endpoint auth (/auth/login & /auth/verify-otp)
+    // Jangan kirim token lama ke endpoint auth (/auth/login & /auth/verify-otp)
     const token = getToken();
     if(token && !path.startsWith('/auth/')){
       headers['Authorization'] = 'Bearer ' + token;
@@ -62,6 +62,8 @@
      ========================================================= */
   const GasAPI = {
 
+    THRESHOLD: 2000, // Ambang batas bahaya 2000 ppm
+
     // POST /api/auth/login  { phone_number }
     async sendOtp(phone){
       try{
@@ -96,14 +98,22 @@
     async getCurrentReading(){
       const res = await apiFetch('/dashboard/status', { method:'GET' });
       const d = res.data || {};
-      const stateMap = { aman:'safe', bahaya:'danger', mati:'offline' };
       
       // Ambil nilai_gas atau gas_value secara fleksibel
       const rawPpm = (d.nilai_gas !== undefined && d.nilai_gas !== null) ? d.nilai_gas : d.gas_value;
+      const ppmVal = (rawPpm === null || rawPpm === undefined) ? null : Number(rawPpm);
+
+      // Evaluasi state berdasarkan THRESHOLD 2000 ppm dan status device
+      let calculatedState = 'safe';
+      if (d.status === 'mati') {
+        calculatedState = 'offline';
+      } else if (ppmVal !== null && (ppmVal >= GasAPI.THRESHOLD || d.is_danger === true || d.status === 'bahaya')) {
+        calculatedState = 'danger';
+      }
 
       return {
-        state: stateMap[d.status] || 'offline',
-        ppm: (rawPpm === null || rawPpm === undefined) ? null : rawPpm,
+        state: calculatedState,
+        ppm: ppmVal,
         timestamp: d.last_update ? new Date(d.last_update) : new Date()
       };
     },
@@ -112,12 +122,15 @@
     async getLogs(perPage){
       const res = await apiFetch('/dashboard/logs?per_page=' + (perPage || 25), { method:'GET' });
       return (res.data || []).map(r => {
-        const ppmVal = (r.nilai_gas !== undefined && r.nilai_gas !== null) ? r.nilai_gas : r.gas_value;
+        const rawPpm = (r.nilai_gas !== undefined && r.nilai_gas !== null) ? r.nilai_gas : r.gas_value;
+        const ppmVal = (rawPpm === null || rawPpm === undefined) ? null : Number(rawPpm);
+        const isDanger = (ppmVal !== null && ppmVal >= GasAPI.THRESHOLD) || r.is_danger === true;
+
         return {
           t: new Date(r.timestamp),
           ppm: ppmVal,
-          // Paksa evaluasi berdasarkan THRESHOLD 2000 ppm
-          state: (ppmVal >= GasAPI.THRESHOLD) ? 'danger' : 'safe',
+          state: isDanger ? 'danger' : 'safe',
+          label: isDanger ? 'Kebocoran gas terdeteksi' : 'Kondisi kembali aman'
         };
       });
     },
@@ -126,14 +139,13 @@
     async getChartHistory(period){
       const res = await apiFetch('/dashboard/gas/chart?period=' + (period || '30d'), { method:'GET' });
       return (res.data || []).map(p => {
-        const ppmVal = (p.nilai_gas !== undefined && p.nilai_gas !== null) ? p.nilai_gas : p.gas_value;
+        const rawPpm = (p.nilai_gas !== undefined && p.nilai_gas !== null) ? p.nilai_gas : p.gas_value;
+        const ppmVal = (rawPpm === null || rawPpm === undefined) ? null : Number(rawPpm);
         return { t: new Date(p.timestamp), ppm: ppmVal };
       });
     },
 
-    logout(){ clearToken(); },
-
-    THRESHOLD: 2000
+    logout(){ clearToken(); }
   };
 
   /* =========================================================
@@ -144,7 +156,6 @@
   let pollInterval = null;
   const historyPoints = [];
   const logEntries = [];
-  let lastKnownState = null;
   let chart = null;
 
   const $ = (sel) => document.querySelector(sel);
@@ -163,7 +174,7 @@
     el._t = setTimeout(() => el.classList.remove('show'), ms || 4200);
   }
 
-function timeHHMM(d){
+  function timeHHMM(d){
     if(!d || isNaN(d)) d = new Date();
     return d.toLocaleTimeString('id-ID', {
       hour:'2-digit',
@@ -172,7 +183,6 @@ function timeHHMM(d){
     });
   }
 
-  // Fungsi baru untuk format tanggal lengkap pada tabel (Misal: 28 Sep 2026, 16.12)
   function formatWaktuLengkap(d){
     if(!d || isNaN(d)) d = new Date();
     
@@ -248,7 +258,6 @@ function timeHHMM(d){
     toast(msg, 5000);
   }
 
-  //if(btnSendOtp) btnSendOtp.addEventListener('click', handleSendOtp);
   if(formLogin) formLogin.addEventListener('submit', handleSendOtp);
 
   /* =========================================================
@@ -358,7 +367,6 @@ function timeHHMM(d){
     enterDashboard();
   }
 
-  //if(btnVerify) btnVerify.addEventListener('click', handleVerifyOtp);
   if(formOtp) formOtp.addEventListener('submit', handleVerifyOtp);
 
   $('#btn-back-login').addEventListener('click', (e) => {
@@ -390,48 +398,51 @@ function timeHHMM(d){
   async function enterDashboard(){
     show('screen-dashboard');
     initChart();
-    historyPoints.length = 0;
-    logEntries.length = 0;
-    lastKnownState = null;
-    renderLog();
+    
+    // Pembaruan awal secara bersamaan
+    await refreshAllDashboardData();
 
-    try{
-      const chartHistory = await GasAPI.getChartHistory('30d');
+    if (!getToken()) return;
+
+    // Set polling otomatis setiap 30 detik (30000 ms) selaras dengan ESP32
+    clearInterval(pollInterval);
+    pollInterval = setInterval(async () => {
+      if (!getToken()) {
+        clearInterval(pollInterval);
+        return;
+      }
+      await refreshAllDashboardData();
+    }, 30000);
+  }
+
+  async function refreshAllDashboardData(){
+    try {
+      const [reading, chartHistory, logs] = await Promise.all([
+        GasAPI.getCurrentReading(),
+        GasAPI.getChartHistory('30d'),
+        GasAPI.getLogs(25)
+      ]);
+
+      // 1. Update Kartu Utama Status
+      applyReading(reading);
+
+      // 2. Update Grafik
+      historyPoints.length = 0;
       chartHistory.slice(-20).forEach(p => historyPoints.push({ t: p.t, ppm: p.ppm }));
       updateChart();
-    } catch(err){ /* abaikan jika gagal */ }
 
-    try{
-      const logs = await GasAPI.getLogs(25);
+      // 3. Update Tabel Log
       logEntries.length = 0;
       logs.forEach(l => logEntries.push({
-        t: l.t, state: l.state, ppm: l.ppm,
-        label: l.state === 'danger' ? 'Kadar gas melewati ambang batas' : 'Pembacaan normal'
+        t: l.t, state: l.state, ppm: l.ppm, label: l.label
       }));
       renderLog();
-    } catch(err){ /* abaikan jika gagal */ }
 
-    async function tick(){
-    // TOMBOL MATI: Jika token kosong, hentikan interval sepenuhnya dan jangan lakukan apa-apa
-    if (!getToken()) {
-      clearInterval(pollInterval);
-      return;
-    }
-
-    try{
-      const reading = await GasAPI.getCurrentReading();
-      applyReading(reading);
-    } catch(err){
+    } catch(err) {
       if(err.network){
         toast(err.message, 4000);
       }
     }
-  }
-
-    if (!getToken()) return;
-
-    clearInterval(pollInterval);
-    pollInterval = setInterval(tick, 4000);
   }
 
   function applyReading(reading){
@@ -465,33 +476,6 @@ function timeHHMM(d){
       $('#mini-conn').textContent = reading.state === 'offline' ? 'Terputus' : 'Terhubung';
       $('#mini-conn').className = 'card-mini-value ' + (reading.state === 'offline' ? 'off' : 'ok');
     }
-
-    if(reading.ppm !== null){
-      historyPoints.push({ t: reading.timestamp, ppm: reading.ppm });
-      if(historyPoints.length > 20) historyPoints.shift();
-      updateChart();
-    }
-
-    if(reading.state !== lastKnownState){
-      addLogEntry(reading);
-      lastKnownState = reading.state;
-    }
-  }
-
-  function addLogEntry(reading){
-    const labelMap = {
-      safe: 'Kondisi kembali aman',
-      danger: 'Kebocoran gas terdeteksi',
-      offline: 'Perangkat berhenti mengirim data'
-    };
-    logEntries.unshift({
-      t: reading.timestamp,
-      state: reading.state,
-      ppm: reading.ppm,
-      label: labelMap[reading.state] || 'Perubahan status'
-    });
-    if(logEntries.length > 25) logEntries.pop();
-    renderLog();
   }
 
   function renderLog(){
@@ -547,7 +531,6 @@ function timeHHMM(d){
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // TAMBAHKAN BAGIAN LAYOUT INI:
         layout: {
           padding: {
             left: 15,
@@ -574,8 +557,6 @@ function timeHHMM(d){
     chart.data.datasets[1].data = historyPoints.map(() => GasAPI.THRESHOLD);
     chart.update('none');
   }
-
-  
 
   /* =========================================================
      INISIALISASI APLIKASI
