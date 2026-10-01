@@ -116,9 +116,8 @@
         return {
           t: new Date(r.timestamp),
           ppm: ppmVal,
-          state: (r.is_danger !== null && r.is_danger !== undefined)
-            ? (r.is_danger ? 'danger' : 'safe')
-            : (ppmVal >= GasAPI.THRESHOLD ? 'danger' : 'safe'),
+          // Paksa evaluasi berdasarkan THRESHOLD 2000 ppm
+          state: (ppmVal >= GasAPI.THRESHOLD) ? 'danger' : 'safe',
         };
       });
     },
