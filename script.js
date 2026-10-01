@@ -65,7 +65,6 @@
     // POST /api/auth/login  { phone_number }
     async sendOtp(phone){
       try{
-        // Bersihkan token lama terlebih dahulu saat meminta OTP baru
         clearToken();
         const res = await apiFetch('/auth/login', {
           method: 'POST',
@@ -96,11 +95,15 @@
     // GET /api/dashboard/status
     async getCurrentReading(){
       const res = await apiFetch('/dashboard/status', { method:'GET' });
-      const d = res.data;
+      const d = res.data || {};
       const stateMap = { aman:'safe', bahaya:'danger', mati:'offline' };
+      
+      // Ambil nilai_gas atau gas_value secara fleksibel
+      const rawPpm = (d.nilai_gas !== undefined && d.nilai_gas !== null) ? d.nilai_gas : d.gas_value;
+
       return {
         state: stateMap[d.status] || 'offline',
-        ppm: (d.gas_value === null || d.gas_value === undefined) ? null : d.gas_value,
+        ppm: (rawPpm === null || rawPpm === undefined) ? null : rawPpm,
         timestamp: d.last_update ? new Date(d.last_update) : new Date()
       };
     },
@@ -108,19 +111,25 @@
     // GET /api/dashboard/logs?per_page=25
     async getLogs(perPage){
       const res = await apiFetch('/dashboard/logs?per_page=' + (perPage || 25), { method:'GET' });
-      return (res.data || []).map(r => ({
-        t: new Date(r.timestamp),
-        ppm: r.gas_value,
-        state: (r.is_danger !== null && r.is_danger !== undefined)
-          ? (r.is_danger ? 'danger' : 'safe')
-          : (r.gas_value >= GasAPI.THRESHOLD ? 'danger' : 'safe'),
-      }));
+      return (res.data || []).map(r => {
+        const ppmVal = (r.nilai_gas !== undefined && r.nilai_gas !== null) ? r.nilai_gas : r.gas_value;
+        return {
+          t: new Date(r.timestamp),
+          ppm: ppmVal,
+          state: (r.is_danger !== null && r.is_danger !== undefined)
+            ? (r.is_danger ? 'danger' : 'safe')
+            : (ppmVal >= GasAPI.THRESHOLD ? 'danger' : 'safe'),
+        };
+      });
     },
 
-    // GET /api/dashboard/gas/chart?period=1h
+    // GET /api/dashboard/gas/chart?period=30d
     async getChartHistory(period){
       const res = await apiFetch('/dashboard/gas/chart?period=' + (period || '30d'), { method:'GET' });
-      return (res.data || []).map(p => ({ t: new Date(p.timestamp), ppm: p.gas_value }));
+      return (res.data || []).map(p => {
+        const ppmVal = (p.nilai_gas !== undefined && p.nilai_gas !== null) ? p.nilai_gas : p.gas_value;
+        return { t: new Date(p.timestamp), ppm: ppmVal };
+      });
     },
 
     logout(){ clearToken(); },
